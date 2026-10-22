@@ -1,11 +1,23 @@
-/node_modules
-/.next/
-/out/
-/coverage
-/test-results/
-/playwright-report/
+# Node / Next.js
+node_modules/
+.next/
+out/
+test-results/
+playwright-report/
 next-env.d.ts
 *.tsbuildinfo
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+# Local data & secrets
 .env*
 !.env.example
+.pgdata/
+.cache/
 .DS_Store

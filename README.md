@@ -1,18 +1,40 @@
 # AURELIS — AI Investment Intelligence Terminal
 
-> **Status: Phase 1. Design previews are awaiting selection.** Every company, ticker, price, filing excerpt and figure in this build is **fictional** and exists only to evaluate the interface.
+> **Status: Phase 2 (financial data architecture).** Design C (Quant Research Lab) has been selected. The web previews still run on a clearly labelled **fictional** dataset. The API ingests real SEC EDGAR data with full provenance.
 
 AURELIS is an evidence-bound equity research workspace: a deterministic engine does the calculations, the AI layer explains them with citations, and every number can be traced back to its source.
 
-## Run the previews
+## Repository layout
+
+```
+web/    Next.js 16 front end (design previews; Design C becomes the product UI in Phase 5)
+api/    FastAPI service: SEC EDGAR ingestion, normalisation, provenance, freshness (Python 3.12, uv)
+docs/   research, architecture, data sources, costs, roadmap, design decision, data methodology
+```
+
+## Run the API (Phase 2)
+
+Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), PostgreSQL 15+ (or `docker compose up -d db`).
+
+```bash
+cd api
+cp .env.example .env          # set AURELIS_SEC_USER_AGENT to "Your Name you@example.com"
+uv sync
+uv run alembic upgrade head
+uv run aurelis-api ingest AAPL MSFT     # fetch from SEC EDGAR and normalise
+uv run aurelis-api serve                # http://127.0.0.1:8000/docs (OpenAPI)
+```
+
+Example: `GET /v1/companies/AAPL/statements/income?period=FY&limit=5`. Every line carries its source concept, accession number, filing date and document URL, or the rule that derived it.
+
+## Run the design previews
 
 Requirements: Node.js ≥ 20.
 
 ```bash
+cd web
 npm install
 npm run dev            # http://localhost:3100
-# or a production build:
-npm run build && npm start
 ```
 
 ## Preview URLs
@@ -36,6 +58,14 @@ Illustrative tickers: `NWSC`, `MRDN`, `ALTP`, `CRSL`, `VRDA`, `HLXB`, `BRKF`, `K
 ## Checks
 
 ```bash
+# API
+cd api
+uv run ruff check . && uv run mypy src
+uv run pytest            # unit + PostgreSQL integration (AURELIS_TEST_DATABASE_URL)
+uv run pytest -m live    # real SEC EDGAR checks (needs network + AURELIS_SEC_USER_AGENT)
+
+# Web
+cd web
 npm run typecheck      # TypeScript
 npm run lint           # ESLint (next/core-web-vitals)
 npm test               # finance engine unit tests (node:test, hand-verified values)
@@ -43,7 +73,7 @@ npm run test:e2e       # Playwright: every route × desktop/mobile, slider + ⌘
                        # (in containers with a preinstalled Chromium: PW_CHROMIUM=/path/to/chrome npm run test:e2e)
 ```
 
-## Project structure
+## Web project structure (`web/`)
 
 ```
 src/app/                    routes: / (hub), /[design] (landing), /[design]/(app)/… (shelled pages)
@@ -64,8 +94,9 @@ tests/                      unit tests        e2e/  Playwright tests        docs
 3. [Data sources, licensing and reliability](docs/03-data-sources.md)
 4. [Estimated operating costs](docs/04-operating-costs.md)
 5. [Implementation roadmap](docs/05-roadmap.md)
-6. [Design comparison and recommendation](docs/06-design-recommendation.md)
-7. [Changelog](CHANGELOG.md)
+6. [Design comparison and recommendation](docs/06-design-recommendation.md) (Design C selected)
+7. [Financial data methodology](docs/07-data-methodology.md)
+8. [Changelog](CHANGELOG.md)
 
 ## Disclaimer
 

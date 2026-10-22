@@ -2,6 +2,26 @@
 
 All notable changes to AURELIS. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow the project phases.
 
+## [0.2.0] — 2026-10-22 · Phase 2: financial data architecture
+
+### Added
+- `api/`: FastAPI service (Python 3.12, SQLAlchemy 2, PostgreSQL, Alembic):
+  - SEC EDGAR client with declared User-Agent, 8 req/s rate limiting, retries with `Retry-After`, conditional GET.
+  - Ticker/CIK lookup with ticker history; issuer profiles and filing index from SEC submissions.
+  - As-reported XBRL fact store (idempotent) and normalised income, balance-sheet and cash-flow lines with provenance (concept, accession, form, filed date, document URL).
+  - Concept mapping with priority fallbacks; currency/unit validation; 52/53-week fiscal calendars; quarterly derivation from YTD figures; derived lines with rule IDs; explicit missing-data rows.
+  - Restatement detection (latest vs originally reported, with cause classification) and stock-split handling (XBRL detection plus manual overrides).
+  - Data-freshness assessment (sync status and expected-filing deadlines).
+  - Endpoints: company search and profile, statements, as-reported fact history, freshness, guarded ingest trigger and ingest-run log; CLI `aurelis-api ingest|serve|sync-tickers`.
+  - 53 tests: unit tests, a synthetic fixture issuer with hand-worked expectations, and PostgreSQL integration tests including migration up/down. Live SEC tests (`-m live`) for five real issuers are included but need network access.
+- `docs/07-data-methodology.md`, `docker-compose.yml` (PostgreSQL 16 + pgvector), `api/.env.example`, GitHub Actions CI for `api/` and `web/`.
+
+### Changed
+- Repository split into `web/` (Next.js) and `api/` (FastAPI). Design C selected as the product direction.
+
+### Fixed
+- Instant (balance-sheet) facts could be stored twice on re-ingest because PostgreSQL treats NULL start dates as distinct; the unique constraint now uses `NULLS NOT DISTINCT`.
+
 ## [0.1.0] — 2026-10-22 · Phase 1: research, architecture and design previews
 
 ### Added
