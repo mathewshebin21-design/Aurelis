@@ -1,0 +1,49 @@
+[project]
+name = "aurelis-api"
+version = "0.1.0"
+description = "AURELIS API: SEC financial data, deterministic quant engine and evidence-bound research"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.20.1",
+    "fastapi>=0.159.1",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.16.1",
+    "sqlalchemy>=2.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+aurelis-api = "aurelis_api.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "respx>=0.23.1",
+    "ruff>=0.17.1",
+]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "C4", "SIM", "PYI"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: hits the real SEC EDGAR API (needs network access and AURELIS_SEC_USER_AGENT)", "db: needs PostgreSQL"]
+addopts = "-m 'not live'"
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+warn_unused_ignores = true
+ignore_missing_imports = true
