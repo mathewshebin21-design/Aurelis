@@ -47,9 +47,19 @@ def test_real_issuer_normalises_with_provenance(client, ticker):
     res = normalize(facts, fiscal_year_end=profile.fiscal_year_end, split_actions=detect_splits(facts))
     assert res.reporting_currency == "USD"
     fy = {(v.line_key, v.fiscal_year): v for v in res.lines if v.period_type == "FY"}
-    latest = max(y for (k, y) in fy if k == "total_assets" and fy[(k, y)].value is not None)
-    assets, le = fy[("total_assets", latest)], fy[("liabilities_and_equity", latest)]
-    assert assets.value == le.value, "balance sheet must balance"
+    years = sorted(y for (k, y) in fy if k == "total_assets" and fy[(k, y)].value is not None)
+    assert years, "expected at least one fiscal-year balance sheet"
+    latest = years[-1]
+    assert fy[("total_assets", latest)].value == fy[("liabilities_and_equity", latest)].value, "latest balance sheet must balance"
+    for y in years:  # older periods must balance or carry an explicit integrity warning
+        a, le = fy.get(("total_assets", y)), fy.get(("liabilities_and_equity", y))
+        if a and le and le.value is not None and a.value != le.value:
+            assert any("Integrity check failed" in n for n in a.notes)
+    assert all(
+        v.source_form and v.source_form.removesuffix("/A") in {"10-K", "10-Q", "10-KT", "10-QT", "20-F", "40-F"}
+        for v in res.lines
+        if v.status == "reported"
+    ), "statements must come from periodic reports only"
     for v in res.lines:
         if v.status == "reported":
             assert v.source_concept and v.source_accession and v.source_filed

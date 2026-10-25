@@ -15,6 +15,16 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
+# Only periodic financial reports feed statements. Other forms also carry XBRL
+# (proxy pay-versus-performance tables, registration statements, 8-K exhibits)
+# but with rounded or unaudited figures; they stay in the raw fact store only.
+STATEMENT_FORMS = frozenset({"10-K", "10-Q", "10-KT", "10-QT", "20-F", "40-F"})
+
+
+def is_statement_form(form: str) -> bool:
+    return form.removesuffix("/A") in STATEMENT_FORMS
+
+
 COMMON_SPLIT_RATIOS = (2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 25, 30, 40, 50)
 
 
@@ -55,13 +65,17 @@ def values_equal(a: Decimal, b: Decimal, unit: str) -> bool:
 
 
 def split_ratio_cause(original: Decimal, latest: Decimal) -> str | None:
-    """Label a change that matches a common split ratio (e.g. EPS 6.00 → 1.50 is 4:1)."""
+    """Label a change that matches a common split ratio (e.g. EPS 6.00 → 1.50 is 4:1).
+
+    Restated per-share values are re-rounded (1.74 / 10 = 0.174 is filed as 0.17), so the
+    match allows half a cent of rounding on top of a 2% relative tolerance.
+    """
     if original == 0 or latest == 0 or (original > 0) != (latest > 0):
         return None
-    ratio = abs(original / latest)
     for r in COMMON_SPLIT_RATIOS:
-        for candidate, label in ((Decimal(r), f"split_{r}_for_1"), (Decimal(1) / Decimal(r), f"reverse_split_1_for_{r}")):
-            if abs(ratio - candidate) / candidate < Decimal("0.02"):
+        for expected, label in ((original / r, f"split_{r}_for_1"), (original * r, f"reverse_split_1_for_{r}")):
+            tolerance = max(Decimal("0.005"), abs(expected) * Decimal("0.02"))
+            if abs(expected - latest) <= tolerance and abs(latest) > tolerance:
                 return f"consistent_with_{label}"
     return None
 
@@ -74,7 +88,8 @@ def _order(f: FactRecord) -> tuple[date, bool, str]:
 def select_latest(facts: Iterable[FactRecord]) -> dict[tuple[str, str, str, date | None, date], Selected]:
     groups: dict[tuple[str, str, str, date | None, date], list[FactRecord]] = defaultdict(list)
     for f in facts:
-        groups[(f.taxonomy, f.concept, f.unit, f.start, f.end)].append(f)
+        if is_statement_form(f.form):
+            groups[(f.taxonomy, f.concept, f.unit, f.start, f.end)].append(f)
     out = {}
     for key, rows in groups.items():
         rows.sort(key=_order)

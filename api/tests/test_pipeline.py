@@ -120,3 +120,26 @@ def test_non_usd_filer_keeps_native_currency():
 def test_fiscal_year_end_inferred_when_missing():
     res = normalize(records(fx.eur_company_facts()), fiscal_year_end=None)
     assert res.fiscal_year_end == (12, 31) and "inferred" in res.warnings[0]
+
+
+def test_balance_identity_failure_is_flagged_not_hidden():
+    # Mirrors a real pattern (JPMorgan FY2009): a later 10-K restates total assets but not
+    # total liabilities & equity for the same date.
+    from datetime import date
+
+    def f(concept, value, acc, filed):
+        return FactRecord("us-gaap", concept, "USD", None, date(2009, 12, 31), Decimal(value), acc, "10-K", date.fromisoformat(filed))
+
+    res = normalize(
+        [
+            f("Assets", 2_031_989, "k10", "2010-02-24"),
+            f("LiabilitiesAndStockholdersEquity", 2_031_989, "k10", "2010-02-24"),
+            f("Assets", 2_119_673, "k11", "2011-02-28"),
+        ],
+        fiscal_year_end="1231",
+    )
+    assets = line(res, "total_assets", "FY", 2009, "FY")
+    le = line(res, "liabilities_and_equity", "FY", 2009, "FY")
+    assert assets.value == 2_119_673 and assets.restated and le.value == 2_031_989
+    assert any("Integrity check failed" in n for n in assets.notes) and any("Integrity check failed" in n for n in le.notes)
+    assert any("Integrity check failed" in w for w in res.warnings)

@@ -13,13 +13,17 @@ All notable changes to AURELIS. Format: [Keep a Changelog](https://keepachangelo
   - Restatement detection (latest vs originally reported, with cause classification) and stock-split handling (XBRL detection plus manual overrides).
   - Data-freshness assessment (sync status and expected-filing deadlines).
   - Endpoints: company search and profile, statements, as-reported fact history, freshness, guarded ingest trigger and ingest-run log; CLI `aurelis-api ingest|serve|sync-tickers`.
-  - 53 tests: unit tests, a synthetic fixture issuer with hand-worked expectations, and PostgreSQL integration tests including migration up/down. Live SEC tests (`-m live`) for five real issuers are included but need network access.
+  - 57 tests: unit tests, a synthetic fixture issuer with hand-worked expectations, and PostgreSQL integration tests including migration up/down. Live SEC tests (`-m live`) for five real issuers pass.
 - `docs/07-data-methodology.md`, `docker-compose.yml` (PostgreSQL 16 + pgvector), `api/.env.example`, GitHub Actions CI for `api/` and `web/`.
 
 ### Changed
 - Repository split into `web/` (Next.js) and `api/` (FastAPI). Design C selected as the product direction.
 
 ### Fixed
+- Statements are built only from periodic reports (10-K/10-Q/20-F/40-F and amendments). Found on real data: JPMorgan's proxy statement (rounded pay-versus-performance figures) was overriding audited 10-K net income.
+- Split-cause classification now tolerates re-rounded per-share values (Nvidia 1.74 → 0.17).
+- Balance-sheet integrity check: periods where total assets ≠ total liabilities & equity are flagged on both lines, naming the filings involved.
+- Company search prefers issuers with ingested data and closer name matches ("apple" → Apple Inc.).
 - Instant (balance-sheet) facts could be stored twice on re-ingest because PostgreSQL treats NULL start dates as distinct; the unique constraint now uses `NULLS NOT DISTINCT`.
 
 ## [0.1.0] — 2026-10-22 · Phase 1: research, architecture and design previews

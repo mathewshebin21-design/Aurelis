@@ -34,7 +34,11 @@ Fair access: every request carries a User-Agent with contact details (the client
 - total debt = short-term borrowings + current and non-current long-term debt, flagged "partial" if a component is missing
 - total liabilities = total liabilities & equity − equity (only when not reported; the note flags NCI and mezzanine equity)
 
-**Restatements (`restatements.py`).** When several filings report the same concept and period, the most recently filed value is current (an amendment beats an original filed the same day). The first-filed value is kept as `original_value`. If the values differ, the line is flagged `restated`, the note names both filings, and the cause is classified as `value_changed` or `consistent_with_split_N_for_1`.
+**Which filings count.** Statements are built only from periodic financial reports: 10-K, 10-Q, 10-KT, 10-QT, 20-F and 40-F, plus their amendments. Other forms also carry XBRL but with rounded or unaudited figures, so their facts stay in the raw store only. Examples are proxy statements (pay-versus-performance tables), registration statements and 8-K exhibits. Real data showed why this matters: JPMorgan's 2026 proxy statement reports FY2023 net income rounded to $49,600M, and because it was filed after the audited 10-K figure of $49,552M, a naive "latest wins" rule would have chosen the rounded number.
+
+**Restatements (`restatements.py`).** When several filings report the same concept and period, the most recently filed value is current (an amendment beats an original filed the same day). The first-filed value is kept as `original_value`. If the values differ, the line is flagged `restated`, the note names both filings, and the cause is classified as `value_changed` or `consistent_with_split_N_for_1`. The split match allows half a cent of re-rounding, because restated per-share values are rounded again (e.g. Nvidia's 1.74 → 0.17 after its 10-for-1 split).
+
+**Integrity check.** Every period where total assets ≠ total liabilities & equity gets a note on both lines naming the two filings, and a pipeline warning. This happens when a later filing restates one line without re-tagging the other. For example, JPMorgan's 2010 filings restated 2009 total assets by about +$88B after a consolidation accounting change, but not the matching total. Neither value is discarded or "corrected".
 
 **Stock splits (`splits.py`).** Splits are detected from the `StockholdersEquityNoteStockSplitConversionRatio1` fact (effective date approximated by that fact's period end and noted), or entered manually in `corporate_action`; manual entries override detected ones within 120 days. Later filings restate comparatives retroactively, so only values whose latest filing predates a split are adjusted: per-share values ÷ ratio, share counts × ratio. Each adjusted line records its `split_factor`.
 
@@ -57,6 +61,9 @@ Two independent signals:
 | Unit tests: periods, 52/53-week mapping, restatements, splits, freshness, EDGAR client (UA, rate limit, retries, 304, 404), parsers | ✅ passing |
 | Pipeline on a **synthetic** fixture issuer (concept switch, YTD cash flows, 10-K/A restatement, 4-for-1 split, missing lines, EUR filer); expected values worked by hand | ✅ passing |
 | PostgreSQL integration: Alembic upgrade → downgrade → upgrade, idempotent ingest, conditional GET, failure recording, API responses, auth guard, input validation | ✅ passing |
-| **Live SEC tests** (`pytest -m live`): AAPL, MSFT, JPM, WMT, NVDA. Balance-sheet identity and provenance on every line | ⏳ written; they need network access to `www.sec.gov` and `data.sec.gov`, which this development environment currently blocks |
+| **Live SEC tests** (`pytest -m live`) on AAPL, MSFT, JPM, WMT and NVDA: the latest balance sheet balances; every older period balances or carries an integrity warning; every reported line comes from a periodic report and has full provenance | ✅ passing (2026-10-25) |
+| Manual review of real ingests (≈165,000 facts across the five issuers) | ✅ Key FY figures spot-checked against the issuers' published results (e.g. Apple FY2024 revenue $391,035M, net income $93,736M). Detected splits match real events (Apple 7:1 and 4:1; Nvidia 4:1 and 10:1; Walmart 3:1), and split-adjusted EPS matches hand calculation (Apple FY2015 $9.22 ÷ 4 = $2.305) |
+
+Real-data review found and fixed two issues before merge: proxy-statement figures overriding audited ones, and split-cause labels missing re-rounded values. It also led to the integrity check above.
 
 The live tests check accounting identities and provenance rather than hard-coded figures, so they stay valid as issuers file new reports.

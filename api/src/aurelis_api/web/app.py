@@ -74,10 +74,11 @@ def search(session: DB, q: Annotated[str, Query(min_length=1, max_length=64)], l
         .all()
     )
 
-    def rank(i: Issuer) -> tuple[int, str]:
+    def rank(i: Issuer) -> tuple[int, bool, int, str]:
         tickers = [t.ticker for t in i.tickers]
         score = 0 if up in tickers else 1 if any(t.startswith(up) for t in tickers) else 2 if i.name.upper().startswith(up) else 3
-        return score, i.name
+        # Ties: issuers with ingested data first, then the closest (shortest) name.
+        return score, i.last_ingested_at is None, len(i.name), i.name
 
     return [
         IssuerSearchHit(cik=i.cik, name=i.name, tickers=[t.ticker for t in i.tickers if t.is_current])

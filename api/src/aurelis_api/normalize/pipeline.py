@@ -200,6 +200,7 @@ def normalize(
     _derive_quarters(values, ytd)
     _derive_lines(values)
     _apply_splits(values, actions)
+    warnings.extend(_check_balance_identity(values))
     lines = _with_missing(values)
     return NormalizationResult(lines, currency, fye, warnings)
 
@@ -271,6 +272,30 @@ def _derive_lines(values: dict[tuple[str, PeriodKey], LineValue]) -> None:
             d = _derived(BY_KEY["total_liabilities"], le, num(le) - num(eq), "liabilities_from_total_less_equity", [le, eq])
             d.notes.append("Includes non-controlling interests and mezzanine equity if the issuer reports them outside equity")
             values[("total_liabilities", pk)] = d
+
+
+def _check_balance_identity(values: dict[tuple[str, PeriodKey], LineValue]) -> list[str]:
+    """Flag periods where total assets ≠ total liabilities & equity.
+
+    This happens when a later filing restates one line without re-tagging the other, so the
+    latest values come from different filings. Neither value is discarded; both carry a note.
+    """
+    found = []
+    for (key, pk), assets in values.items():
+        if key != "total_assets" or assets.value is None:
+            continue
+        le = values.get(("liabilities_and_equity", pk))
+        if le is None or le.value is None or abs(assets.value - le.value) <= 1:
+            continue
+        msg = (
+            f"Integrity check failed: total assets {assets.value} ({assets.source_form} {assets.source_accession}) "
+            f"≠ total liabilities & equity {le.value} ({le.source_form} {le.source_accession}). "
+            "A later filing restated one line without the other; use with caution."
+        )
+        assets.notes.append(msg)
+        le.notes.append(msg)
+        found.append(f"{pk[2]} {pk[1]}: {msg}")
+    return found
 
 
 def _apply_splits(values: dict[tuple[str, PeriodKey], LineValue], actions: list[SplitAction]) -> None:

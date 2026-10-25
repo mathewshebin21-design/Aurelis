@@ -61,3 +61,28 @@ def test_detect_and_merge_splits():
     manual = [SplitAction(Decimal(4), date(2024, 6, 10), "manual")]
     merged = merge_actions(detected, manual)
     assert merged == manual  # manual entry overrides the approximate XBRL date
+
+
+def test_non_periodic_report_values_never_override_financial_statements():
+    # Real-world case (JPMorgan, FY2023): the 2026 proxy statement's pay-versus-performance table
+    # reports net income rounded to 49,600m, filed after the audited 10-K figure of 49,552m.
+    sel = select_latest(
+        [
+            fact(49_552_000_000, "10k-2024", date(2024, 2, 16)),
+            fact(49_552_000_000, "10k-2026", date(2026, 2, 13)),
+            fact(49_600_000_000, "proxy", date(2026, 4, 6), "DEF 14A"),
+        ]
+    )
+    (s,) = sel.values()
+    assert s.fact.value == 49_552_000_000 and s.fact.form == "10-K" and not s.restated
+
+
+def test_facts_only_in_non_periodic_reports_are_ignored():
+    assert select_latest([fact(1, "s1", date(2024, 1, 1), "S-1"), fact(2, "8k", date(2024, 2, 1), "8-K")]) == {}
+
+
+def test_split_cause_tolerates_rounding_in_restated_filings():
+    # Real-world case (NVIDIA FY2023): 1.74 restated as 0.17 after a 10-for-1 split (0.174 rounded to 2 dp).
+    assert split_ratio_cause(Decimal("1.74"), Decimal("0.17")) == "consistent_with_split_10_for_1"
+    assert split_ratio_cause(Decimal("1.76"), Decimal("0.18")) == "consistent_with_split_10_for_1"
+    assert split_ratio_cause(Decimal("1.00"), Decimal("0.93")) is None  # a genuine 7% change is not a split
