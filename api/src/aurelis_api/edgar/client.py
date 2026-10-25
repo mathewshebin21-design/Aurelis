@@ -77,8 +77,8 @@ class EdgarClient:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
-    def get_json(self, url: str, *, if_modified_since: str | None = None) -> Fetched:
-        headers = {"If-Modified-Since": if_modified_since} if if_modified_since else {}
+    def _get(self, url: str, headers: dict[str, str]) -> httpx.Response:
+        """GET with rate limiting and retries. Returns the response for 2xx and 304."""
         attempt = 0
         while True:
             self._limiter.acquire()
@@ -90,8 +90,6 @@ class EdgarClient:
                 self._backoff(attempt, None)
                 attempt += 1
                 continue
-            if resp.status_code == 304:
-                return Fetched(None, if_modified_since, not_modified=True)
             if resp.status_code == 404:
                 raise EdgarError(f"Not found: {url}")
             if resp.status_code == 429 or resp.status_code >= 500:
@@ -102,7 +100,20 @@ class EdgarClient:
                 continue
             if resp.status_code >= 400:
                 raise EdgarError(f"GET {url} returned {resp.status_code}")
-            return Fetched(resp.json(), resp.headers.get("Last-Modified"))
+            return resp
+
+    def get_json(self, url: str, *, if_modified_since: str | None = None) -> Fetched:
+        headers = {"If-Modified-Since": if_modified_since} if if_modified_since else {}
+        resp = self._get(url, headers)
+        if resp.status_code == 304:
+            return Fetched(None, if_modified_since, not_modified=True)
+        return Fetched(resp.json(), resp.headers.get("Last-Modified"))
+
+    def get_text(self, url: str) -> str:
+        """A filing document (HTML). Only sec.gov URLs are fetched."""
+        if not url.startswith("https://www.sec.gov/Archives/edgar/data/"):
+            raise EdgarError(f"Refusing to fetch non-EDGAR URL: {url}")
+        return self._get(url, {}).text
 
     def _backoff(self, attempt: int, retry_after: str | None) -> None:
         delay = min(60.0, 2.0**attempt)

@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # Temporary shared secret for admin endpoints; Phase 6 replaces it with real auth.
     admin_token: str | None = None
 
+    # AI research (Phase 4). The API key is read by the Anthropic SDK from ANTHROPIC_API_KEY.
+    research_model: str = "claude-opus-5-5"
+    research_effort: str = "medium"
+
     # Freshness: how long since the last successful SEC check before data counts as unchecked.
     sync_max_age_hours: int = 24
 

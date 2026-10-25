@@ -2,6 +2,28 @@
 
 All notable changes to AURELIS. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow the project phases.
 
+## [0.4.0] — 2026-10-25 · Phase 4: evidence-bound AI research
+
+### Added
+- `api/src/aurelis_api/research/`:
+  - filing-text ingestion: inline-XBRL-aware HTML extraction, Item sectioning that is robust to tables of contents, 10-Q Part I/II numbering and annual-report layouts, and overlapping chunks with character offsets
+  - PostgreSQL full-text retrieval
+  - computed-facts block (annual metrics, latest-quarter year-over-year, optional peers)
+  - versioned prompt with JSON-schema output; Claude client with refusal fallback and stop-reason handling
+  - deterministic claim verifier (references, numbers, quotes, guarantees, advice); stored runs and claims with verdicts
+- Endpoints: `POST /v1/admin/filings/{ref}/text`, `GET /v1/companies/{ref}/filings/search`, `GET /v1/companies/{ref}/research/facts`, `POST /v1/admin/research/{ref}`, `GET /v1/research/runs/{id}`, `GET /v1/companies/{ref}/research`.
+- CLI: `aurelis-api ingest-text`, `aurelis-api research`, `aurelis-api eval-citations`.
+- Migration: `filing_document`, `filing_chunk` (generated `tsvector` + GIN index), `research_run`, `research_claim`.
+- Tests: a 21-case labelled verifier benchmark (100% accurate), text extraction, an end-to-end research flow with a scripted model, Claude request shape and failure handling, API. 128 non-live tests and 8 live tests pass.
+- `docs/09-research-methodology.md`.
+
+### Changed
+- The EDGAR client can fetch filing documents (sec.gov archive URLs only), with the same rate limiting and retries.
+- The admin guard moved to `web/security.py`.
+
+### Pending
+- Live AI evaluation requires `ANTHROPIC_API_KEY` (not configured; paid usage needs approval).
+
 ## [0.3.0] — 2026-10-25 · Phase 3: quantitative engine
 
 ### Added

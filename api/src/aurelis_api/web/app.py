@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import hmac
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Path, Query
+from fastapi import Depends, FastAPI, HTTPException, Path, Query
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
 
@@ -19,6 +18,7 @@ from ..models import Fact, Filing, IngestRun, Issuer, IssuerTicker, NormalizedLi
 from ..normalize.concepts import BY_KEY, LINES
 from ..normalize.periods import parse_fye
 from .quant_routes import router as quant_router
+from .research_routes import router as research_router
 from .schemas import (
     FactOut,
     FreshnessOut,
@@ -29,6 +29,7 @@ from .schemas import (
     Provenance,
     StatementOut,
 )
+from .security import require_admin
 
 app = FastAPI(
     title="AURELIS API",
@@ -37,6 +38,7 @@ app = FastAPI(
 )
 
 app.include_router(quant_router)
+app.include_router(research_router)
 
 DB = Annotated[Session, Depends(get_session)]
 IssuerRef = Annotated[str, Path(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9.\-]+$", description="Ticker or CIK")]
@@ -184,14 +186,6 @@ def freshness(session: DB, ref: IssuerRef):
         sync_max_age_hours=get_settings().sync_max_age_hours,
     )
     return FreshnessOut(**f.__dict__)
-
-
-def require_admin(x_admin_token: Annotated[str | None, Header()] = None) -> None:
-    expected = get_settings().admin_token
-    if not expected:
-        raise HTTPException(503, "Admin endpoints are disabled: AURELIS_ADMIN_TOKEN is not set")
-    if not x_admin_token or not hmac.compare_digest(x_admin_token, expected):
-        raise HTTPException(401, "Invalid admin token")
 
 
 @app.post("/v1/admin/ingest/{ref}", response_model=IngestRunOut, dependencies=[Depends(require_admin)])

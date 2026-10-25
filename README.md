@@ -1,6 +1,6 @@
 # AURELIS — AI Investment Intelligence Terminal
 
-> **Status: Phase 3 (quantitative engine).** Design C (Quant Research Lab) has been selected. The web previews still run on a clearly labelled **fictional** dataset. The API ingests real SEC EDGAR data with full provenance.
+> **Status: Phase 4 (evidence-bound AI research).** Design C (Quant Research Lab) has been selected. The web previews still run on a clearly labelled **fictional** dataset. The API ingests real SEC EDGAR data with full provenance.
 
 AURELIS is an evidence-bound equity research workspace: a deterministic engine does the calculations, the AI layer explains them with citations, and every number can be traced back to its source.
 
@@ -28,6 +28,7 @@ uv run aurelis-api serve                # http://127.0.0.1:8000/docs (OpenAPI)
 Examples:
 - `GET /v1/companies/AAPL/statements/income?period=FY&limit=5`: every line carries its source concept, accession number, filing date and document URL, or the rule that derived it.
 - `GET /v1/companies/AAPL/metrics`: margins, returns, liquidity, leverage and coverage, each with its formula, inputs and any stated assumption.
+- `GET /v1/companies/AAPL/research`: AI-written bull/bear, risk, catalyst, earnings and competition claims. Every claim is labelled fact, assumption or interpretation, cited to filing passages or computed facts, and checked by a deterministic verifier (`aurelis-api ingest-text AAPL`, then `aurelis-api research AAPL`; needs `ANTHROPIC_API_KEY`).
 - `POST /v1/valuation/dcf`: deterministic DCF with an optional WACC × g sensitivity grid. See `/docs` for the WACC, scenario and comparables calculators.
 
 ## Run the design previews
@@ -100,7 +101,8 @@ tests/                      unit tests        e2e/  Playwright tests        docs
 6. [Design comparison and recommendation](docs/06-design-recommendation.md) (Design C selected)
 7. [Financial data methodology](docs/07-data-methodology.md)
 8. [Quantitative engine methodology](docs/08-quant-methodology.md)
-9. [Changelog](CHANGELOG.md)
+9. [AI research methodology](docs/09-research-methodology.md)
+10. [Changelog](CHANGELOG.md)
 
 ## Disclaimer
 

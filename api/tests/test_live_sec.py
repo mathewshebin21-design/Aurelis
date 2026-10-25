@@ -83,3 +83,17 @@ def test_apple_fy2024_gross_margin_matches_published(client):
     lines = {v.line_key: LineInput(v.line_key, v.value, v.status) for v in res.lines if v.period_type == "FY" and v.fiscal_year == 2024}
     gm = next(m for m in compute_metrics([PeriodLines("FY2024", 2024, lines)]) if m.key == "gross_margin")
     assert gm.value is not None and abs(gm.value - Decimal("0.462")) < Decimal("0.0005")
+
+
+@pytest.mark.parametrize("cik", [320193, 1045810])
+def test_real_10k_text_splits_into_items(client, cik):
+    """The latest real 10-K yields substantive Risk Factors and MD&A sections (not table-of-contents lines)."""
+    from aurelis_api.research.text import html_to_text, split_sections
+
+    profile = parse_submissions(client.submissions(cik).json())
+    tenk = next(f for f in profile.filings if f.form == "10-K" and f.url)
+    text = html_to_text(client.get_text(tenk.url))
+    secs = {s.key: s for s in split_sections(text, "10-K")}
+    assert {"1", "1A", "7", "8"} <= set(secs)
+    assert secs["1A"].end - secs["1A"].start > 20_000 and secs["7"].end - secs["7"].start > 10_000
+    assert secs["1"].start < secs["1A"].start < secs["7"].start < secs["8"].start
