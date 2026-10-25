@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from datetime import date, datetime
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,6 +24,62 @@ from .security import require_admin
 router = APIRouter(prefix="/v1", tags=["research"])
 DB = Annotated[Session, Depends(get_session)]
 Ref = Annotated[str, Field(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9.\-]+$")]
+PathRef = Annotated[str, Path(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9.\-]+$", description="Ticker or CIK")]
+
+
+class ComputedFactOut(BaseModel):
+    id: str
+    label: str
+    period: str
+    value: str
+    display: str
+    source: str
+
+
+class ResearchFactsOut(BaseModel):
+    cik: int
+    facts: list[ComputedFactOut]
+
+
+class EvidenceOut(BaseModel):
+    id: str
+    form: str
+    filed: date
+    section: str
+    excerpt: str
+    url: str
+    char_start: int
+    char_end: int
+
+
+class ClaimOut(BaseModel):
+    id: int
+    section: str
+    kind: str
+    text: str
+    confidence: str
+    verdict: Literal["verified", "flagged", "rejected"]
+    issues: list[str]
+    quotes: list[str]
+    evidence: list[EvidenceOut]
+    facts: list[ComputedFactOut]
+
+
+class RunOut(BaseModel):
+    id: int
+    cik: int
+    created_at: datetime
+    status: str
+    error: str | None
+    model: str
+    engine_version: str
+    prompt_version: str
+    metrics: dict[str, Any]
+    open_questions: list[str]
+    claims: list[ClaimOut]
+    rejected_hidden: int
+    disclaimer: str
+
 
 DISCLAIMER = (
     "AI-written research, checked by a deterministic citation verifier. Facts are cited to SEC filings or computed figures; "
@@ -41,7 +98,7 @@ def _cik(session: Session, ref: str) -> int:
 
 
 @router.post("/admin/filings/{ref}/text", dependencies=[Depends(require_admin)])
-def ingest_text(session: DB, ref: str, kind: Literal["annual", "quarterly"] = "annual") -> dict[str, object]:
+def ingest_text(session: DB, ref: PathRef, kind: Literal["annual", "quarterly"] = "annual") -> dict[str, object]:
     cik = _cik(session, ref)
     s = get_settings()
     try:
@@ -89,8 +146,8 @@ def filing_search(
     ]
 
 
-@router.get("/companies/{ref}/research/facts")
-def research_facts(session: DB, ref: str) -> dict[str, object]:
+@router.get("/companies/{ref}/research/facts", response_model=ResearchFactsOut)
+def research_facts(session: DB, ref: PathRef) -> dict[str, object]:
     """Exactly the computed facts a research run would give the model (the only numbers it may quote)."""
     cik = _cik(session, ref)
     issuer = session.get(Issuer, cik)
@@ -108,8 +165,8 @@ class ResearchIn(BaseModel):
     peers: Annotated[list[Ref], Field(max_length=5)] = []
 
 
-@router.post("/admin/research/{ref}", dependencies=[Depends(require_admin)])
-def create_research(session: DB, ref: str, body: ResearchIn) -> dict[str, object]:
+@router.post("/admin/research/{ref}", response_model=RunOut, dependencies=[Depends(require_admin)])
+def create_research(session: DB, ref: PathRef, body: ResearchIn) -> dict[str, object]:
     cik = _cik(session, ref)
     peers = [_cik(session, p) for p in body.peers]
     s = get_settings()
@@ -123,7 +180,7 @@ def create_research(session: DB, ref: str, body: ResearchIn) -> dict[str, object
     return run_detail(session, result.run.id)
 
 
-@router.get("/research/runs/{run_id}")
+@router.get("/research/runs/{run_id}", response_model=RunOut)
 def run_detail(session: DB, run_id: int, include_rejected: bool = False) -> dict[str, object]:
     run = session.get(ResearchRun, run_id)
     if run is None:
@@ -182,8 +239,8 @@ def run_detail(session: DB, run_id: int, include_rejected: bool = False) -> dict
     }
 
 
-@router.get("/companies/{ref}/research")
-def latest_research(session: DB, ref: str) -> dict[str, object]:
+@router.get("/companies/{ref}/research", response_model=RunOut)
+def latest_research(session: DB, ref: PathRef) -> dict[str, object]:
     cik = _cik(session, ref)
     run = session.scalars(
         select(ResearchRun).where(ResearchRun.cik == cik, ResearchRun.status == "ok").order_by(ResearchRun.id.desc())

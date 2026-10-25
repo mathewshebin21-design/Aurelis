@@ -86,7 +86,13 @@ def search(session: DB, q: Annotated[str, Query(min_length=1, max_length=64)], l
         return score, i.last_ingested_at is None, len(i.name), i.name
 
     return [
-        IssuerSearchHit(cik=i.cik, name=i.name, tickers=[t.ticker for t in i.tickers if t.is_current])
+        IssuerSearchHit(
+            cik=i.cik,
+            name=i.name,
+            tickers=[t.ticker for t in i.tickers if t.is_current],
+            has_data=i.last_ingested_at is not None,
+            last_ingested_at=i.last_ingested_at,
+        )
         for i in sorted(candidates, key=rank)[:limit]
     ]
 

@@ -2,6 +2,22 @@
 
 All notable changes to AURELIS. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow the project phases.
 
+## [Unreleased] — Phase 5: live terminal (Design C), in progress
+
+### Added
+- Phase 5 plan: `docs/11-phase5-frontend-plan.md` (contract audit, screen → endpoint map, milestones, blockers).
+- 5.0 backend contract:
+  - `quant/score.py`: the five-pillar health score, with the same bands as the Design preview (a parity test reads the TypeScript rule table). Financial-sector issuers get not-applicable pillars and a re-based total; with fewer than three applicable pillars no score is given.
+  - `GET /v1/companies/{ref}/scorecard` returns the rules, inputs (with formula and provenance) and points.
+  - Typed response models for WACC, scenarios, comps, research runs, latest research and research facts.
+  - Search hits include `has_data` and `last_ingested_at`.
+  - `shared/openapi.json` is exported by `api/scripts/export_openapi.py`; CI checks it is current.
+- 5.1 web client:
+  - `web/src/lib/api/`: types generated from the contract (`npm run gen:api`); a result-typed client that maps FastAPI errors; display-only formatters.
+  - `/terminal/api/*`, an allow-listed proxy for compute-only endpoints (admin endpoints unreachable from the browser).
+  - An ESLint rule that forbids the illustrative TS engine and demo data in live code.
+- Tests: 8 API tests (score bands, sector handling, parity, endpoint, search) and 7 web tests (client, proxy allow-list, formatters). 149 API and 23 web non-live tests pass.
+
 ## [0.4.1] — 2026-10-25 · Spend-guarded AI acceptance test
 
 ### Added
