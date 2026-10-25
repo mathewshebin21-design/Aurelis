@@ -62,3 +62,17 @@ Code: `api/src/aurelis_api/quant/`. Engine version: `quant-1.0.0` (returned with
 | **Live check on real data:** Apple's FY2024 gross margin computed from SEC filings matches its published 46.2% | ✅ |
 
 Real data also showed how the engine behaves on a bank (JPMorgan). Operating-company metrics such as gross margin, EBITDA and current ratio are correctly unavailable, each with a reason. Debt/equity carries a caveat because the debt total is only partially tagged.
+
+## Health score (`quant/score.py`, Phase 5)
+
+The score has five pillars of 20 points each, scored from fixed bands that are the same for every issuer:
+
+| Pillar | Metric |
+|---|---|
+| Profitability | Operating margin |
+| Growth | 3-year revenue CAGR |
+| Capital returns | ROIC |
+| Balance sheet | Net debt / EBITDA (lower is better) |
+| Interest coverage | EBIT / interest expense; no interest expense earns full marks |
+
+`GET /v1/companies/{ref}/scorecard` returns each pillar's bands, rationale, value and points, plus the engine metrics used as inputs. Undefined metrics follow the published rule (0 points, or full marks for coverage). For financial-sector issuers (SIC 6000–6799), undefined industrial metrics are *not applicable* and the total is re-based. With fewer than three applicable pillars there is no score. The bands are identical to the ones published in the Phase 1 design preview; `tests/test_score.py` enforces the parity. The score describes historical condition only; it is not a rating or a recommendation.

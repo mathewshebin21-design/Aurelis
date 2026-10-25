@@ -103,6 +103,7 @@ tests/                      unit tests        e2e/  Playwright tests        docs
 8. [Quantitative engine methodology](docs/08-quant-methodology.md)
 9. [AI research methodology](docs/09-research-methodology.md)
 10. [Live AI research acceptance test](docs/10-ai-acceptance-test.md) (prepared; awaiting approval)
+11. [Phase 5 frontend integration plan](docs/11-phase5-frontend-plan.md) (Design C live terminal)
 10. [Changelog](CHANGELOG.md)
 
 ## Disclaimer

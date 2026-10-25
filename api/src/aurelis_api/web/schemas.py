@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class _Out(BaseModel):
@@ -34,6 +34,17 @@ class IssuerSearchHit(_Out):
     cik: int
     name: str
     tickers: list[str]
+    has_data: bool = Field(description="Statements have been ingested; issuers known only from the SEC ticker map have none yet")
+    last_ingested_at: datetime | None
+
+
+class CoverageOut(_Out):
+    cik: int
+    name: str
+    tickers: list[str]
+    sic_description: str | None
+    reporting_currency: str | None
+    last_ingested_at: datetime
 
 
 class Provenance(_Out):

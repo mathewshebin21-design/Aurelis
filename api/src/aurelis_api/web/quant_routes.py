@@ -11,7 +11,7 @@ from dataclasses import asdict
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,12 +21,14 @@ from ..ingest.service import IssuerNotFound, resolve_cik
 from ..models import Issuer, NormalizedLine
 from ..quant import ENGINE_VERSION
 from ..quant import ratios as r
+from ..quant import score as sc
 from ..quant.dcf import DcfAssumptions, DcfInputError, Scenario, cost_of_equity, grid, probability_weighted, run_dcf, sensitivity, wacc
 from ..quant.metrics import LineInput, PeriodLines, compute_metrics
 from ..quant.valuation import CompanyFundamentals, implied_per_share, multiples, peer_stats
 
 router = APIRouter(prefix="/v1", tags=["quant"])
 DB = Annotated[Session, Depends(get_session)]
+Ref = Annotated[str, Path(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9.\-]+$", description="Ticker or CIK")]
 
 Rate = Annotated[Decimal, Field(ge=Decimal("-0.5"), le=Decimal("2"))]
 Positive = Annotated[Decimal, Field(gt=0)]
@@ -92,7 +94,7 @@ class MetricsResponse(BaseModel):
 
 
 @router.get("/companies/{ref}/metrics", response_model=MetricsResponse)
-def company_metrics(session: DB, ref: str, limit: Annotated[int, Query(ge=1, le=20)] = 5):
+def company_metrics(session: DB, ref: Ref, limit: Annotated[int, Query(ge=1, le=20)] = 5):
     """Annual metrics computed by the deterministic engine from normalised statements."""
     cik = _cik(session, ref)
     periods = load_periods(session, cik, "FY")
@@ -123,7 +125,7 @@ class DcfInputsResponse(BaseModel):
 
 
 @router.get("/companies/{ref}/dcf-inputs", response_model=DcfInputsResponse)
-def dcf_inputs(session: DB, ref: str):
+def dcf_inputs(session: DB, ref: Ref):
     """Starting values for a DCF taken from the latest annual statements.
 
     Market inputs (price, beta, risk-free rate, ERP) and forecasts are not in SEC
@@ -295,7 +297,13 @@ class WaccIn(BaseModel):
     tax_rate: Annotated[Decimal, Field(ge=0, lt=1)]
 
 
-@router.post("/valuation/wacc")
+class WaccOut(BaseModel):
+    cost_of_equity: Decimal
+    wacc: Decimal
+    engine_version: str
+
+
+@router.post("/valuation/wacc", response_model=WaccOut)
 def wacc_endpoint(body: WaccIn) -> dict[str, Decimal | str]:
     ke = cost_of_equity(body.risk_free, body.beta, body.equity_risk_premium)
     try:
@@ -315,7 +323,22 @@ class ScenariosIn(BaseModel):
     scenarios: Annotated[list[ScenarioIn], Field(min_length=1, max_length=10)]
 
 
-@router.post("/valuation/scenarios")
+class ScenarioOut(BaseModel):
+    name: str
+    probability: Decimal
+    per_share: Decimal
+    enterprise_value: Decimal
+    warnings: list[str]
+
+
+class ScenariosOut(BaseModel):
+    engine_version: str
+    probability_weighted_per_share: Decimal
+    scenarios: list[ScenarioOut]
+    disclaimer: str
+
+
+@router.post("/valuation/scenarios", response_model=ScenariosOut)
 def scenarios(body: ScenariosIn) -> dict[str, object]:
     try:
         weighted, results = probability_weighted([Scenario(s.name, s.probability, s.assumptions.to_engine()) for s in body.scenarios])
@@ -378,7 +401,48 @@ def _fundamentals(session: Session, ref: str, mcap: Decimal) -> tuple[CompanyFun
     return fundamentals, v("shares_outstanding") or v("diluted_shares"), p.label
 
 
-@router.post("/valuation/comps")
+class MultiplesOut(BaseModel):
+    name: str
+    enterprise_value: Decimal
+    ev_to_revenue: Decimal | None
+    ev_to_ebitda: Decimal | None
+    ev_to_ebit: Decimal | None
+    price_to_earnings: Decimal | None
+    price_to_book: Decimal | None
+    fcf_yield: Decimal | None
+
+
+class CompanyMultiplesOut(BaseModel):
+    multiples: MultiplesOut
+    period: str
+    shares: Decimal | None = None
+
+
+class PeerStatsOut(BaseModel):
+    key: str
+    n: int
+    low: Decimal | None
+    median: Decimal | None
+    high: Decimal | None
+
+
+class ImpliedOut(BaseModel):
+    key: str
+    low: Decimal | None
+    median: Decimal | None
+    high: Decimal | None
+
+
+class CompsOut(BaseModel):
+    engine_version: str
+    target: CompanyMultiplesOut
+    peers: list[CompanyMultiplesOut]
+    peer_stats: dict[str, PeerStatsOut]
+    implied_per_share: list[ImpliedOut]
+    notes: list[str]
+
+
+@router.post("/valuation/comps", response_model=CompsOut)
 def comps(session: DB, body: CompsIn) -> dict[str, object]:
     caps = {k.upper(): val for k, val in body.market_caps.items()}
     target, shares, t_period = _fundamentals(session, body.target, caps[body.target.upper()])
@@ -397,3 +461,113 @@ def comps(session: DB, body: CompsIn) -> dict[str, object]:
             "Debt and cash at fiscal year end; cash includes short-term investments. Missing debt or cash is treated as zero.",
         ],
     }
+
+
+# ── Health score ────────────────────────────────────────────────────────────
+
+
+class BandOut(BaseModel):
+    threshold: Decimal
+    points: int
+
+
+class PillarOut(BaseModel):
+    id: str
+    label: str
+    metric: str
+    metric_key: str
+    value: Decimal | None
+    points: int | None
+    max: int
+    applicable: bool
+    note: str | None
+    lower_is_better: bool
+    bands: list[BandOut]
+    when_undefined: int
+    rationale: str
+
+
+class ScorecardOut(BaseModel):
+    cik: int
+    period: str
+    engine_version: str
+    total: int | None
+    raw_points: int
+    applicable_max: int
+    grade: str | None
+    financial_sector: bool
+    pillars: list[PillarOut]
+    inputs: list[MetricOut]
+    notes: list[str]
+    disclaimer: str
+
+
+@router.get("/companies/{ref}/scorecard", response_model=ScorecardOut)
+def scorecard(session: DB, ref: Ref):
+    """Rule-based health score for the latest fiscal year. Every pillar shows its metric, bands and points."""
+    cik = _cik(session, ref)
+    periods = load_periods(session, cik, "FY")
+    if not periods:
+        raise HTTPException(409, "No annual statements available for this issuer")
+    latest = periods[-1]
+    by_key = {m.key: m for m in compute_metrics(periods) if m.period == latest.label}
+    revenue = {p.fiscal_year: (p.lines["revenue"].value if "revenue" in p.lines else None) for p in periods}
+    cagr = sc.revenue_cagr_3y(revenue, latest.fiscal_year)
+    values = {
+        k: (by_key[k].value if k in by_key else None) for k in ("operating_margin", "roic", "net_debt_to_ebitda", "interest_coverage")
+    }
+    values["revenue_cagr_3y"] = cagr
+    issuer = session.get(Issuer, cik)
+    financial = sc.is_financial_sector(issuer.sic if issuer else None)
+    card = sc.health_score(values, financial_sector=financial)
+    rules = {x.id: x for x in sc.RULES}
+    y0, y3 = latest.fiscal_year, latest.fiscal_year - 3
+    cagr_metric = MetricOut(
+        key="revenue_cagr_3y",
+        label="Revenue CAGR (3 years)",
+        unit="ratio",
+        formula=f"(revenue FY{y0} / revenue FY{y3}) ^ (1/3) - 1",
+        period=latest.label,
+        value=cagr,
+        inputs=[
+            InputRefOut(
+                period=f"FY{y}", line_key="revenue", value=revenue.get(y), status="reported" if revenue.get(y) is not None else "missing"
+            )
+            for y in (y3, y0)
+        ],
+        assumptions=[],
+        reason=None if cagr is not None else f"Revenue for FY{y3} or FY{y0} is missing or not positive",
+    )
+    notes = list(card.notes)
+    if financial:
+        notes.append("Financial-sector issuer: industrial metrics that are undefined are treated as not applicable, not as failures")
+    return ScorecardOut(
+        cik=cik,
+        period=latest.label,
+        engine_version=ENGINE_VERSION,
+        total=card.total,
+        raw_points=card.raw_points,
+        applicable_max=card.applicable_max,
+        grade=card.grade,
+        financial_sector=financial,
+        pillars=[
+            PillarOut(
+                **asdict(p),
+                lower_is_better=rules[p.id].lower_is_better,
+                bands=[BandOut(threshold=b.threshold, points=b.points) for b in rules[p.id].bands],
+                when_undefined=rules[p.id].when_undefined,
+                rationale=rules[p.id].rationale,
+            )
+            for p in card.pillars
+        ],
+        inputs=[
+            *(
+                MetricOut(**asdict(by_key[k]))
+                for k in ("operating_margin", "roic", "net_debt_to_ebitda", "interest_coverage")
+                if k in by_key
+            ),
+            cagr_metric,
+        ],
+        notes=notes,
+        disclaimer="Describes historical financial condition from filed statements. Not a forecast, rating or recommendation.",
+    )
