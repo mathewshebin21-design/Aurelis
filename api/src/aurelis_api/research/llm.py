@@ -7,8 +7,23 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
-class ModelRefused(RuntimeError):
-    pass
+class ModelError(RuntimeError):
+    """The API answered but produced no usable research. Carries the usage it billed."""
+
+    status = "error"
+
+    def __init__(self, message: str, *, usage: dict[str, Any] | None = None, model: str | None = None):
+        super().__init__(message)
+        self.usage = usage or {}
+        self.model = model
+
+
+class ModelRefused(ModelError):
+    status = "refused"
+
+
+class ModelTruncated(ModelError):
+    status = "truncated"
 
 
 class ModelNotConfigured(RuntimeError):
@@ -53,13 +68,21 @@ class ClaudeModel:
             if "authentication" in str(e).lower():
                 raise ModelNotConfigured("Set ANTHROPIC_API_KEY to enable AI research") from e
             raise
-        if response.stop_reason == "refusal":
-            raise ModelRefused(f"Model declined the request ({getattr(response.stop_details, 'category', None)})")
-        if response.stop_reason == "max_tokens":
-            raise RuntimeError("Model output was truncated (max_tokens); no partial research is stored")
-        text = next(b.text for b in response.content if b.type == "text")
         usage = response.usage.model_dump() if hasattr(response.usage, "model_dump") else {}
+        if response.stop_reason == "refusal":
+            category = getattr(response.stop_details, "category", None)
+            raise ModelRefused(f"Model declined the request ({category})", usage=usage, model=response.model)
+        if response.stop_reason == "max_tokens":
+            raise ModelTruncated(
+                "Model output was truncated (max_tokens); no partial research is stored", usage=usage, model=response.model
+            )
+        text = next(b.text for b in response.content if b.type == "text")
         return ModelResponse(json.loads(text), response.model, usage)
+
+    def count_tokens(self, system: str, user: str, schema: dict[str, Any]) -> int:
+        """Exact input size from the free token-counting endpoint (used to size the budget reservation)."""
+        r = self._client.messages.count_tokens(model=self.name, system=system, messages=[{"role": "user", "content": user}])
+        return int(r.input_tokens)
 
     def _create(self, system: str, user: str, schema: dict[str, Any]) -> Any:
         return self._client.beta.messages.create(

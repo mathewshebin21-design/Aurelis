@@ -2,6 +2,20 @@
 
 All notable changes to AURELIS. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow the project phases.
 
+## [0.4.1] — 2026-10-25 · Spend-guarded AI acceptance test
+
+### Added
+- `research/budget.py`: a hard spending limit for model calls. The worst case is reserved before each call and the call is refused if it could exceed the limit; the actual cost comes from API-reported usage, including fallback iterations and cache tokens; the ledger is persistent.
+- `ai_usage` ledger table (migration `66b9880cab3e`), recording tokens, actual cost, reservation, latency, requested and served model, and status per call.
+- `research/evaluation.py`: per-claim evaluation of stored runs on source validity, numerical accuracy, quotation accuracy, completeness, unsupported assertions and interpretation quality (automated checks plus a human rubric). Rejected claims are kept.
+- `research/acceptance.py` + `aurelis-api acceptance-test`: AAPL/MSFT/JPM on real SEC data. It is a dry run by default; `--live --approve-spend` and an API key are required to spend. It writes Markdown and JSON reports.
+- Tests: budget accounting and the hard stop, evaluation dimensions, and the acceptance flow with a scripted model. 141 non-live tests pass.
+- `docs/10-ai-acceptance-test.md`.
+
+### Changed
+- Model errors (`ModelRefused`, `ModelTruncated`) carry the usage the API billed, so failed calls are still accounted for.
+- `ClaudeModel.count_tokens` sizes reservations from the free token-counting endpoint.
+
 ## [0.4.0] — 2026-10-25 · Phase 4: evidence-bound AI research
 
 ### Added
