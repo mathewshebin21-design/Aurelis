@@ -14,6 +14,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Computed,
     Date,
     DateTime,
     ForeignKey,
@@ -25,6 +26,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -191,3 +193,74 @@ class IngestRun(Base):
     facts_inserted: Mapped[int] = mapped_column(Integer, default=0)
     lines_written: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text)
+
+
+class FilingDocument(Base):
+    """Plain text of a filing's primary document, kept verbatim so citations can be checked."""
+
+    __tablename__ = "filing_document"
+
+    accession: Mapped[str] = mapped_column(String(20), primary_key=True)
+    cik: Mapped[int] = mapped_column(ForeignKey("issuer.cik", ondelete="CASCADE"), index=True)
+    form: Mapped[str] = mapped_column(String(16))
+    filing_date: Mapped[date] = mapped_column(Date)
+    report_date: Mapped[date | None] = mapped_column(Date)
+    url: Mapped[str] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(String(64))
+    text: Mapped[str] = mapped_column(Text)
+    sections: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FilingChunk(Base):
+    __tablename__ = "filing_chunk"
+    __table_args__ = (
+        UniqueConstraint("accession", "section", "ordinal"),
+        Index("ix_filing_chunk_tsv", "tsv", postgresql_using="gin"),
+        Index("ix_filing_chunk_cik", "cik"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    accession: Mapped[str] = mapped_column(ForeignKey("filing_document.accession", ondelete="CASCADE"))
+    cik: Mapped[int] = mapped_column(BigInteger)
+    section: Mapped[str] = mapped_column(String(8))
+    section_title: Mapped[str] = mapped_column(String(120))
+    ordinal: Mapped[int] = mapped_column(Integer)
+    char_start: Mapped[int] = mapped_column(Integer)
+    char_end: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    tsv: Mapped[str] = mapped_column(TSVECTOR, Computed("to_tsvector('english', text)", persisted=True))
+
+
+class ResearchRun(Base):
+    __tablename__ = "research_run"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cik: Mapped[int] = mapped_column(ForeignKey("issuer.cik", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    model: Mapped[str] = mapped_column(String(64))
+    engine_version: Mapped[str] = mapped_column(String(32))
+    prompt_version: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16), comment="ok | refused | error")
+    facts: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
+    evidence_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    open_questions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    metrics: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    usage: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class ResearchClaim(Base):
+    __tablename__ = "research_claim"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("research_run.id", ondelete="CASCADE"), index=True)
+    section: Mapped[str] = mapped_column(String(16), comment="summary | bull | bear | risk | catalyst | earnings | competition")
+    kind: Mapped[str] = mapped_column(String(16), comment="fact | assumption | interpretation")
+    text: Mapped[str] = mapped_column(Text)
+    confidence: Mapped[str] = mapped_column(String(8))
+    evidence_chunk_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
+    fact_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    quotes: Mapped[list[str]] = mapped_column(JSON, default=list)
+    verdict: Mapped[str] = mapped_column(String(16), comment="verified | flagged | rejected")
+    issues: Mapped[list[str]] = mapped_column(JSON, default=list)
