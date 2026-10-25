@@ -91,3 +91,9 @@ def test_scorecard_endpoint_shows_rules_inputs_and_points(api):  # noqa: F811
 def test_search_reports_whether_data_exists(api):  # noqa: F811
     hits = api.get("/v1/companies", params={"q": "FXTR"}).json()
     assert hits[0]["has_data"] is True and hits[0]["last_ingested_at"]
+
+
+@pytest.mark.db
+def test_coverage_lists_only_ingested_issuers(api):  # noqa: F811
+    rows = api.get("/v1/coverage").json()
+    assert [r["tickers"] for r in rows] == [["FXTR"]] and rows[0]["last_ingested_at"]

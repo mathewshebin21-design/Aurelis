@@ -20,6 +20,7 @@ from ..normalize.periods import parse_fye
 from .quant_routes import router as quant_router
 from .research_routes import router as research_router
 from .schemas import (
+    CoverageOut,
     FactOut,
     FreshnessOut,
     IngestRunOut,
@@ -94,6 +95,26 @@ def search(session: DB, q: Annotated[str, Query(min_length=1, max_length=64)], l
             last_ingested_at=i.last_ingested_at,
         )
         for i in sorted(candidates, key=rank)[:limit]
+    ]
+
+
+@app.get("/v1/coverage", response_model=list[CoverageOut])
+def coverage(session: DB, limit: Annotated[int, Query(ge=1, le=500)] = 200):
+    """Issuers whose statements have been ingested (the companies the terminal can show), by name."""
+    issuers = session.scalars(
+        select(Issuer).where(Issuer.last_ingested_at.is_not(None)).options(selectinload(Issuer.tickers)).order_by(Issuer.name).limit(limit)
+    ).all()
+    return [
+        CoverageOut(
+            cik=i.cik,
+            name=i.name,
+            tickers=[t.ticker for t in i.tickers if t.is_current],
+            sic_description=i.sic_description,
+            reporting_currency=i.reporting_currency,
+            last_ingested_at=i.last_ingested_at,
+        )
+        for i in issuers
+        if i.last_ingested_at is not None
     ]
 
 

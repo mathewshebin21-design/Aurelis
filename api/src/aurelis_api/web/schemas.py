@@ -38,6 +38,15 @@ class IssuerSearchHit(_Out):
     last_ingested_at: datetime | None
 
 
+class CoverageOut(_Out):
+    cik: int
+    name: str
+    tickers: list[str]
+    sic_description: str | None
+    reporting_currency: str | None
+    last_ingested_at: datetime
+
+
 class Provenance(_Out):
     status: str
     source_concept: str | None

@@ -72,7 +72,7 @@ Browser ──► Next.js (server components) ──server-side fetch──► F
 |---|---|---|
 | 5.0 | Backend contract hardening: typed responses, `has_data`, `ref` validation, `quant/score.py` and scorecard endpoint, OpenAPI export | pytest (score bands, sector N/A, parity with the preview rules), ruff, mypy |
 | 5.1 | Typed web client: generated schema, fetch wrappers, proxy route with allow-list, display formatters, lint rule banning `lib/finance` in live code | node:test (client error mapping, formatters, proxy allow-list), typecheck, CI drift check |
-| 5.2 | `/terminal` shell in Design C, search, company header and freshness | Playwright against a real API seeded with the synthetic fixture |
+| 5.2 ✅ | `/terminal` shell in Design C, search, company header and freshness, overview | Playwright against a real API seeded with the synthetic fixture |
 | 5.3 | Financials with provenance drawer | e2e: values match API, provenance opens with accession |
 | 5.4 | Valuation studio (DCF, sensitivity, WACC, comps) | e2e: slider change → engine response rendered; 422 warnings shown |
 | 5.5 | Scenarios | e2e: weighted value equals API's |
@@ -92,3 +92,14 @@ CI adds a `web-e2e` job: a Postgres service, the API started from source, a seed
 | B5 | **Hosting** for API and Postgres is not chosen | No public deployment yet | Local and CI only; hosting options and costs go to you before Phase 6 |
 | B6 | **Open PR stack** #1–#4 is unmerged (Phase 5 would be the fifth level) | Review burden grows | Recommend merging #1–#4 after your review; Phase 5 rebases onto `main` with merge commits |
 | B7 | Leftover `claude/...` branch in the unrelated Custom-Denim repo | None for AURELIS | You can delete it from GitHub |
+
+## 7. Running the terminal locally
+
+```bash
+# API on the development database (ingest companies first: aurelis-api ingest AAPL MSFT JPM)
+cd api && uv run aurelis-api serve --port 8000
+# Web (production build)
+cd web && npm run build && AURELIS_API_URL=http://127.0.0.1:8000 npx next start --port 3100   # → http://localhost:3100/terminal
+# Terminal e2e (creates/re-seeds the aurelis_e2e database with synthetic data)
+cd web && npx playwright test -c playwright.terminal.config.ts
+```

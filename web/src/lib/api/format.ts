@@ -25,6 +25,7 @@ export function fmtCompact(v: Dec, digits = 1): string {
   const n = toNumber(v);
   if (n === null) return NOT_REPORTED;
   const abs = Math.abs(n);
+  if (abs === 0) return "0";
   for (const [s, suffix] of SCALES) if (abs >= s) return `${n < 0 ? "−" : ""}${(abs / s).toFixed(digits)}${suffix}`;
   return `${n < 0 ? "−" : ""}${abs.toFixed(abs >= 100 ? 0 : 2)}`;
 }

@@ -4,6 +4,7 @@ const PORT = Number(process.env.PORT ?? 3100);
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["terminal/**"], // the live terminal has its own config (playwright.terminal.config.ts)
   timeout: 30_000,
   reporter: [["list"]],
   use: {

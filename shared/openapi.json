@@ -251,6 +251,62 @@
         "title": "ComputedFactOut",
         "type": "object"
       },
+      "CoverageOut": {
+        "properties": {
+          "cik": {
+            "title": "Cik",
+            "type": "integer"
+          },
+          "last_ingested_at": {
+            "format": "date-time",
+            "title": "Last Ingested At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reporting_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reporting Currency"
+          },
+          "sic_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sic Description"
+          },
+          "tickers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tickers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cik",
+          "name",
+          "tickers",
+          "sic_description",
+          "reporting_currency",
+          "last_ingested_at"
+        ],
+        "title": "CoverageOut",
+        "type": "object"
+      },
       "DcfIn-Input": {
         "properties": {
           "base_revenue": {
@@ -3584,6 +3640,53 @@
           }
         },
         "summary": "Statement"
+      }
+    },
+    "/v1/coverage": {
+      "get": {
+        "description": "Issuers whose statements have been ingested (the companies the terminal can show), by name.",
+        "operationId": "coverage_v1_coverage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoverageOut"
+                  },
+                  "title": "Response Coverage V1 Coverage Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Coverage"
       }
     },
     "/v1/health": {

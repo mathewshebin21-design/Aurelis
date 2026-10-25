@@ -280,6 +280,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Coverage
+         * @description Issuers whose statements have been ingested (the companies the terminal can show), by name.
+         */
+        get: operations["coverage_v1_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/health": {
         parameters: {
             query?: never;
@@ -471,6 +491,24 @@ export interface components {
             source: string;
             /** Value */
             value: string;
+        };
+        /** CoverageOut */
+        CoverageOut: {
+            /** Cik */
+            cik: number;
+            /**
+             * Last Ingested At
+             * Format: date-time
+             */
+            last_ingested_at: string;
+            /** Name */
+            name: string;
+            /** Reporting Currency */
+            reporting_currency: string | null;
+            /** Sic Description */
+            sic_description: string | null;
+            /** Tickers */
+            tickers: string[];
         };
         /** DcfIn */
         "DcfIn-Input": {
@@ -1727,6 +1765,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatementOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    coverage_v1_coverage_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoverageOut"][];
                 };
             };
             /** @description Validation Error */
