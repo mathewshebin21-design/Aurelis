@@ -102,6 +102,7 @@ tests/                      unit tests        e2e/  Playwright tests        docs
 7. [Financial data methodology](docs/07-data-methodology.md)
 8. [Quantitative engine methodology](docs/08-quant-methodology.md)
 9. [AI research methodology](docs/09-research-methodology.md)
+10. [Live AI research acceptance test](docs/10-ai-acceptance-test.md) (prepared; awaiting approval)
 10. [Changelog](CHANGELOG.md)
 
 ## Disclaimer

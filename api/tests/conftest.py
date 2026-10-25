@@ -41,7 +41,7 @@ def session(engine):
     with engine.begin() as c:
         c.execute(
             text(
-                "truncate issuer, filing, fact, normalized_line, corporate_action, fx_rate, ingest_run, issuer_ticker "
+                "truncate issuer, filing, fact, normalized_line, corporate_action, fx_rate, ingest_run, issuer_ticker, ai_usage "
                 "restart identity cascade"
             )
         )

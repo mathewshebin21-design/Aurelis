@@ -264,3 +264,26 @@ class ResearchClaim(Base):
     quotes: Mapped[list[str]] = mapped_column(JSON, default=list)
     verdict: Mapped[str] = mapped_column(String(16), comment="verified | flagged | rejected")
     issues: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
+class AiUsage(Base):
+    """Append-only ledger of every paid model call: actual tokens, cost and latency."""
+
+    __tablename__ = "ai_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    budget_key: Mapped[str] = mapped_column(String(64), index=True)
+    purpose: Mapped[str] = mapped_column(String(64))
+    requested_model: Mapped[str] = mapped_column(String(64))
+    served_model: Mapped[str | None] = mapped_column(String(64))
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cache_creation_input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cache_read_input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6))
+    reserved_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), comment="Worst-case cost reserved before the call")
+    latency_ms: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16), comment="ok | refused | error")
+    research_run_id: Mapped[int | None] = mapped_column(Integer)
+    detail: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
