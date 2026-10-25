@@ -2,6 +2,21 @@
 
 All notable changes to AURELIS. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow the project phases.
 
+## [0.3.0] — 2026-10-25 · Phase 3: quantitative engine
+
+### Added
+- `api/src/aurelis_api/quant/`: a deterministic Decimal engine (`quant-1.0.0`) covering:
+  - growth, margins, EBIT/EBITDA, free cash flow, effective tax rate, ROE, ROIC
+  - current and quick ratios, debt/equity, debt/EBITDA, net debt/EBITDA, interest coverage
+  - CAPM, WACC, FCFF DCF with fades, mid-year option, Gordon and exit-multiple terminal values with cross-checks
+  - equity bridge, intrinsic value per share, sensitivity grids, probability-weighted scenarios
+  - EV, multiples, peer percentiles and implied values
+- Metrics computed from SEC-normalised statements, each with its formula, input lines (with status), stated assumptions and a reason when undefined. Data-quality caveats on inputs carry through to the metric.
+- Endpoints: `/v1/companies/{ref}/metrics`, `/v1/companies/{ref}/dcf-inputs`, `/v1/valuation/{dcf,wacc,scenarios,comps}`.
+- `shared/fixtures/oracle.py`: an independent exact-fraction oracle. Both the Python and the TypeScript engines are tested against its output (`quant-cases.json`).
+- Tests: 92 non-live (oracle parity, behaviour, Hypothesis properties, API) plus 6 live, including Apple's FY2024 gross margin vs. its published 46.2%. Web: 4 new parity tests (16 total).
+- `docs/08-quant-methodology.md`.
+
 ## [0.2.0] — 2026-10-22 · Phase 2: financial data architecture
 
 ### Added
