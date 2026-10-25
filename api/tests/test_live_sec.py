@@ -6,6 +6,7 @@ than hard-coded numbers, so they stay valid as issuers file new reports.
 """
 
 import os
+from decimal import Decimal
 
 import pytest
 
@@ -67,3 +68,18 @@ def test_real_issuer_normalises_with_provenance(client, ticker):
             assert v.rule_id
         if v.status == "missing":
             assert v.value is None and v.notes
+
+
+def test_apple_fy2024_gross_margin_matches_published(client):
+    """Apple reported a 46.2% total gross margin for fiscal 2024 (10-K, filed November 2024)."""
+    from aurelis_api.quant.metrics import LineInput, PeriodLines, compute_metrics
+
+    profile = parse_submissions(client.submissions(320193).json())
+    facts = [
+        FactRecord(f.taxonomy, f.concept, f.unit, f.start, f.end, f.value, f.accession, f.form, f.filed)
+        for f in iter_company_facts(client.company_facts(320193).json())
+    ]
+    res = normalize(facts, fiscal_year_end=profile.fiscal_year_end, split_actions=detect_splits(facts))
+    lines = {v.line_key: LineInput(v.line_key, v.value, v.status) for v in res.lines if v.period_type == "FY" and v.fiscal_year == 2024}
+    gm = next(m for m in compute_metrics([PeriodLines("FY2024", 2024, lines)]) if m.key == "gross_margin")
+    assert gm.value is not None and abs(gm.value - Decimal("0.462")) < Decimal("0.0005")

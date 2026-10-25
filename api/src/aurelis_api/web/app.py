@@ -18,6 +18,7 @@ from ..ingest.service import IssuerNotFound, ingest_issuer, resolve_cik
 from ..models import Fact, Filing, IngestRun, Issuer, IssuerTicker, NormalizedLine
 from ..normalize.concepts import BY_KEY, LINES
 from ..normalize.periods import parse_fye
+from .quant_routes import router as quant_router
 from .schemas import (
     FactOut,
     FreshnessOut,
@@ -34,6 +35,8 @@ app = FastAPI(
     version="0.2.0",
     description="SEC-sourced financial data with provenance. Values are as reported by issuers; nothing is estimated.",
 )
+
+app.include_router(quant_router)
 
 DB = Annotated[Session, Depends(get_session)]
 IssuerRef = Annotated[str, Path(min_length=1, max_length=16, pattern=r"^[A-Za-z0-9.\-]+$", description="Ticker or CIK")]
